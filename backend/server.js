@@ -11,18 +11,21 @@ connectDB();
 
 const app = express();
 
-// CORS — allow the Vite dev server and same-origin requests
+// CORS — allow local dev + any origin specified via CLIENT_URL env var
 const allowedOrigins = [
     'http://localhost:3000',
     'http://localhost:5000',
     'http://127.0.0.1:3000',
     'http://127.0.0.1:5000',
-];
+    // Production frontend (Vercel URL set in Railway env vars as CLIENT_URL)
+    process.env.CLIENT_URL,
+].filter(Boolean);
 
 app.use(cors({
     origin: (origin, callback) => {
+        // Allow same-origin requests (no Origin header) and whitelisted origins
         if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
-        callback(new Error('CORS: origin not allowed'));
+        callback(new Error(`CORS: origin not allowed — ${origin}`));
     },
     credentials: true,
 }));
@@ -55,8 +58,10 @@ app.use(notFound);
 app.use(errorHandler);
 
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
-    console.log(`\n🚀 Ajo server running on http://localhost:${PORT}`);
+// Bind to 0.0.0.0 so Railway's proxy can reach the process from outside the container.
+// Node defaults to 127.0.0.1 which is only reachable inside the container.
+app.listen(PORT, '0.0.0.0', () => {
+    console.log(`\n🚀 Ajo server running on http://0.0.0.0:${PORT}`);
     console.log(`   Mode: ${process.env.NODE_ENV || 'development'}\n`);
 });
 
