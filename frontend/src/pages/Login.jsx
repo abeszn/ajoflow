@@ -1,14 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { ShieldCheck, Users, Banknote } from 'lucide-react';
-import { useAuth } from '../context/AuthContext';
-import API from '../services/api';
+import { supabase } from '../lib/supabase';
 import ThemeToggle from '../components/ThemeToggle';
 import PasswordInput from '../components/PasswordInput';
 
 export default function Login() {
   const navigate = useNavigate();
-  const { login } = useAuth();
   const [form, setForm] = useState({ email: '', password: '' });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -20,11 +18,15 @@ export default function Login() {
     setError('');
     setLoading(true);
     try {
-      const { data } = await API.post('/auth/login', form);
-      login(data);
+      const { error: authError } = await supabase.auth.signInWithPassword({
+        email:    form.email.trim(),
+        password: form.password,
+      });
+      if (authError) throw authError;
+      // AuthContext onAuthStateChange → SIGNED_IN → loads MongoDB profile
       navigate('/dashboard');
     } catch (err) {
-      setError(err.response?.data?.message || 'Invalid email or password.');
+      setError(err.message || 'Invalid email or password. Please try again.');
     } finally {
       setLoading(false);
     }

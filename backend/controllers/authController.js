@@ -1,182 +1,60 @@
-const crypto = require('crypto');
-const bcrypt = require('bcryptjs');
+const jwt  = require('jsonwebtoken');
 const User = require('../models/User');
-const generateToken = require('../utils/generateToken');
-const { sendEmail, resetTemplate, codeTemplate } = require('../utils/sendEmail');
 
-/* ── Register ── */
-const registerUser = async (req, res, next) => {
+/* ─────────────────────────────────────────────────────────
+   syncProfile
+   Called by the frontend right after Supabase signUp to
+   create (or re-link) the MongoDB user profile.
+   No protect middleware — JWT is verified here directly.
+──────────────────────────────────────────────────────────── */
+const syncProfile = async (req, res, next) => {
     try {
-        const { name, email, phone, password } = req.body;
+        const authHeader = req.headers.authorization || '';
+        const token = authHeader.startsWith('Bearer ') ? authHeader.split(' ')[1] : null;
+        if (!token) return res.status(401).json({ message: 'No token provided' });
 
-        if (!name?.trim() || !email?.trim() || !password) {
-            return res.status(400).json({ message: 'Name, email, and password are required' });
-        }
-        if (password.length < 6) {
-            return res.status(400).json({ message: 'Password must be at least 6 characters' });
-        }
+        const decoded    = jwt.verify(token, process.env.SUPABASE_JWT_SECRET);
+        const supabaseId = decoded.sub;
+        const email      = decoded.email;
 
-        const exists = await User.findOne({ email: email.toLowerCase().trim() });
-        if (exists) {
-            return res.status(400).json({ message: 'An account with that email already exists' });
-        }
+        const { name, phone, role } = req.body;
 
-        const salt = await bcrypt.genSalt(10);
-        const user = await User.create({
-            name: name.trim(),
-            email: email.toLowerCase().trim(),
-            phone: phone?.trim() || '',
-            password: await bcrypt.hash(password, salt),
-        });
+        // Try to find existing profile by supabaseId or email
+        let user = await User.findOne({ $or: [{ supabaseId }, { email }] });
+
+        if (user) {
+            // Link supabaseId if it wasn't stored yet
+            if (!user.supabaseId) {
+                user.supabaseId = supabaseId;
+                await user.save();
+            }
+        } else {
+            // First time — create the MongoDB record
+            user = await User.create({
+                supabaseId,
+                name:  (name || email.split('@')[0]).trim(),
+                email,
+                phone: phone?.trim()  || '',
+                role:  ['admin', 'member'].includes(role) ? role : 'member',
+            });
+        }
 
         res.status(201).json({
-            _id: user._id,
-            name: user.name,
+            _id:   user._id,
+            name:  user.name,
             email: user.email,
             phone: user.phone,
-            role: user.role,
-            token: generateToken(user._id),
+            role:  user.role,
         });
     } catch (error) {
         next(error);
     }
 };
 
-/* ── Login: validate credentials → return JWT ── */
-const loginUser = async (req, res, next) => {
-    try {
-        const { email, password } = req.body;
-
-        if (!email?.trim() || !password) {
-            return res.status(400).json({ message: 'Email and password are required' });
-        }
-
-        const user = await User.findOne({ email: email.toLowerCase().trim() });
-        if (!user || !(await user.matchPassword(password))) {
-            return res.status(401).json({ message: 'Invalid email or password' });
-        }
-
-        res.json({
-            _id: user._id,
-            name: user.name,
-            email: user.email,
-            phone: user.phone,
-            role: user.role,
-            token: generateToken(user._id),
-        });
-    } catch (error) {
-        next(error);
-    }
-};
-
-/* ── Forgot Password — sends 6-digit code ── */
-const forgotPassword = async (req, res, next) => {
-    try {
-        const { email } = req.body;
-        if (!email?.trim()) {
-            return res.status(400).json({ message: 'Email is required' });
-        }
-
-        const user = await User.findOne({ email: email.toLowerCase().trim() });
-
-        // Always respond the same way to avoid user enumeration
-        if (!user) {
-            return res.json({ message: 'If that email is registered, a code has been sent' });
-        }
-
-        // Generate 6-digit numeric code and store its hash
-        const code = String(Math.floor(100000 + Math.random() * 900000));
-        const hashedCode = crypto.createHash('sha256').update(code).digest('hex');
-
-        user.resetPasswordToken   = hashedCode;
-        user.resetPasswordExpires = new Date(Date.now() + 15 * 60 * 1000); // 15 min
-        await user.save();
-
-        await sendEmail({
-            to:      user.email,
-            subject: 'Your AjoFlow password reset code',
-            html:    codeTemplate(code),
-        });
-
-        res.json({ message: 'If that email is registered, a code has been sent' });
-    } catch (error) {
-        next(error);
-    }
-};
-
-/* ── Verify 6-digit reset code + set new password ── */
-const verifyResetCode = async (req, res, next) => {
-    try {
-        const { email, code, password } = req.body;
-
-        if (!email?.trim() || !code?.trim() || !password) {
-            return res.status(400).json({ message: 'Email, code, and new password are required' });
-        }
-        if (password.length < 6) {
-            return res.status(400).json({ message: 'Password must be at least 6 characters' });
-        }
-
-        const hashedCode = crypto.createHash('sha256').update(code.trim()).digest('hex');
-
-        const user = await User.findOne({
-            email:                email.toLowerCase().trim(),
-            resetPasswordToken:   hashedCode,
-            resetPasswordExpires: { $gt: new Date() },
-        });
-
-        if (!user) {
-            return res.status(400).json({ message: 'Invalid or expired code. Please request a new one.' });
-        }
-
-        const salt = await bcrypt.genSalt(10);
-        user.password             = await bcrypt.hash(password, salt);
-        user.resetPasswordToken   = undefined;
-        user.resetPasswordExpires = undefined;
-        await user.save();
-
-        res.json({ message: 'Password changed successfully. You can now sign in.' });
-    } catch (error) {
-        next(error);
-    }
-};
-
-/* ── Reset Password ── */
-const resetPassword = async (req, res, next) => {
-    try {
-        const { password } = req.body;
-        const rawToken = req.params.token;
-
-        if (!password || password.length < 6) {
-            return res.status(400).json({ message: 'Password must be at least 6 characters' });
-        }
-
-        const hashedToken = crypto.createHash('sha256').update(rawToken).digest('hex');
-
-        const user = await User.findOne({
-            resetPasswordToken: hashedToken,
-            resetPasswordExpires: { $gt: new Date() },
-        });
-
-        if (!user) {
-            return res.status(400).json({ message: 'Reset link is invalid or has expired' });
-        }
-
-        const salt = await bcrypt.genSalt(10);
-        user.password = await bcrypt.hash(password, salt);
-        user.resetPasswordToken = undefined;
-        user.resetPasswordExpires = undefined;
-        await user.save();
-
-        res.json({ message: 'Password reset successfully. You can now sign in.' });
-    } catch (error) {
-        next(error);
-    }
-};
-
-/* ── Get current user ── */
+/* ── Get current user (protected) ── */
 const getMe = async (req, res, next) => {
     try {
-        const user = await User.findById(req.user._id).select('-password -otp -otpExpires -resetPasswordToken -resetPasswordExpires');
+        const user = await User.findById(req.user._id).select('-password');
         if (!user) return res.status(404).json({ message: 'User not found' });
         res.json(user);
     } catch (error) {
@@ -184,14 +62,14 @@ const getMe = async (req, res, next) => {
     }
 };
 
-/* ── Update profile ── */
+/* ── Update profile name / phone (protected) ── */
 const updateProfile = async (req, res, next) => {
     try {
         const { name, phone } = req.body;
         const user = await User.findById(req.user._id);
         if (!user) return res.status(404).json({ message: 'User not found' });
 
-        if (name?.trim()) user.name = name.trim();
+        if (name?.trim())    user.name  = name.trim();
         if (phone !== undefined) user.phone = phone.trim();
 
         const updated = await user.save();
@@ -201,34 +79,4 @@ const updateProfile = async (req, res, next) => {
     }
 };
 
-/* ── Change password (logged-in user) ── */
-const changePassword = async (req, res, next) => {
-    try {
-        const { currentPassword, newPassword } = req.body;
-
-        if (!currentPassword || !newPassword) {
-            return res.status(400).json({ message: 'Current password and new password are required' });
-        }
-        if (newPassword.length < 6) {
-            return res.status(400).json({ message: 'New password must be at least 6 characters' });
-        }
-
-        const user = await User.findById(req.user._id);
-        if (!(await user.matchPassword(currentPassword))) {
-            return res.status(400).json({ message: 'Current password is incorrect' });
-        }
-        if (currentPassword === newPassword) {
-            return res.status(400).json({ message: 'New password must be different from current password' });
-        }
-
-        const salt = await bcrypt.genSalt(10);
-        user.password = await bcrypt.hash(newPassword, salt);
-        await user.save();
-
-        res.json({ message: 'Password changed successfully' });
-    } catch (error) {
-        next(error);
-    }
-};
-
-module.exports = { registerUser, loginUser, forgotPassword, verifyResetCode, resetPassword, getMe, updateProfile, changePassword };
+module.exports = { syncProfile, getMe, updateProfile };
