@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { Menu } from 'lucide-react';
 import Sidebar from './Sidebar';
 import { useAuth } from '../context/AuthContext';
@@ -24,6 +24,7 @@ function greet() {
 export default function AppLayout({ children }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const location = useLocation();
+  const navigate = useNavigate();
   const { user } = useAuth();
 
   const page = PAGES[location.pathname] || { title: 'AjoFlow', subtitle: () => '' };
@@ -55,7 +56,12 @@ export default function AppLayout({ children }) {
 
           <div className="topbar-right">
             <ThemeToggle />
-            <div className="topbar-avatar">{initials}</div>
+            <div
+              className="topbar-avatar"
+              onClick={() => navigate('/settings')}
+              title="Go to Settings"
+              style={{ cursor: 'pointer' }}
+            >{initials}</div>
           </div>
         </header>
 
