@@ -1,24 +1,68 @@
 import { useState } from 'react';
+import { Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import AppLayout from '../components/AppLayout';
 import API from '../services/api';
 
+function Row({ label, value }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+      <span className="form-label">{label}</span>
+      <span style={{ fontSize: '.9rem', color: 'var(--text-1)' }}>{value}</span>
+    </div>
+  );
+}
+
+function PwField({ label, value, onChange, placeholder, show, onToggle }) {
+  return (
+    <div className="form-group mb-0">
+      <label className="form-label">{label}</label>
+      <div style={{ position: 'relative' }}>
+        <input
+          className="form-input"
+          type={show ? 'text' : 'password'}
+          value={value}
+          onChange={onChange}
+          placeholder={placeholder}
+          style={{ paddingRight: 42 }}
+          required
+        />
+        <button
+          type="button"
+          onClick={onToggle}
+          style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-3)', padding: 2 }}
+        >
+          {show ? <EyeOff size={16} /> : <Eye size={16} />}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function Settings() {
-  const { user, login } = useAuth();
+  const { user, login }      = useAuth();
   const { theme, toggleTheme } = useTheme();
 
-  const [editing, setEditing] = useState(false);
-  const [form, setForm] = useState({ name: user?.name || '', phone: user?.phone || '' });
-  const [saving, setSaving] = useState(false);
-  const [saveMsg, setSaveMsg] = useState('');
-  const [saveErr, setSaveErr] = useState('');
+  /* ── Profile edit ── */
+  const [editing, setEditing]   = useState(false);
+  const [form, setForm]         = useState({ name: user?.name || '', phone: user?.phone || '' });
+  const [saving, setSaving]     = useState(false);
+  const [saveMsg, setSaveMsg]   = useState('');
+  const [saveErr, setSaveErr]   = useState('');
+
+  /* ── Change password ── */
+  const [pwForm, setPwForm]     = useState({ current: '', next: '', confirm: '' });
+  const [pwSaving, setPwSaving] = useState(false);
+  const [pwMsg, setPwMsg]       = useState('');
+  const [pwErr, setPwErr]       = useState('');
+  const [showCurrent, setShowCurrent] = useState(false);
+  const [showNew,     setShowNew]     = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
 
   const handleSave = async (e) => {
     e.preventDefault();
-    setSaving(true);
-    setSaveMsg('');
-    setSaveErr('');
+    setSaving(true); setSaveMsg(''); setSaveErr('');
     try {
       const { data } = await API.put('/auth/me', { name: form.name, phone: form.phone });
       login({ ...user, ...data });
@@ -32,19 +76,37 @@ export default function Settings() {
     }
   };
 
+  const handleChangePassword = async (e) => {
+    e.preventDefault();
+    setPwMsg(''); setPwErr('');
+    if (pwForm.next !== pwForm.confirm) {
+      return setPwErr('New passwords do not match.');
+    }
+    if (pwForm.next.length < 6) {
+      return setPwErr('New password must be at least 6 characters.');
+    }
+    setPwSaving(true);
+    try {
+      await API.put('/auth/change-password', {
+        currentPassword: pwForm.current,
+        newPassword:     pwForm.next,
+      });
+      setPwMsg('Password changed successfully.');
+      setPwForm({ current: '', next: '', confirm: '' });
+      setTimeout(() => setPwMsg(''), 5000);
+    } catch (err) {
+      setPwErr(err.response?.data?.message || 'Failed to change password.');
+    } finally {
+      setPwSaving(false);
+    }
+  };
+
   const initials = user?.name
     ? user.name.split(' ').map((n) => n[0]).slice(0, 2).join('').toUpperCase()
     : 'U';
 
   return (
     <AppLayout>
-      <div className="page-header">
-        <div>
-          <div className="page-title">Settings</div>
-          <div className="page-subtitle">Manage your account and preferences</div>
-        </div>
-      </div>
-
       <div style={{ display: 'flex', flexDirection: 'column', gap: 20, maxWidth: 620 }}>
 
         {/* ── Profile ── */}
@@ -93,10 +155,50 @@ export default function Settings() {
             </form>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              <Row label="Email" value={user?.email} />
-              <Row label="Phone" value={user?.phone || '—'} />
+              <Row label="Email"  value={user?.email} />
+              <Row label="Phone"  value={user?.phone || '—'} />
             </div>
           )}
+        </div>
+
+        {/* ── Change Password ── */}
+        <div className="card card-pad">
+          <h3 className="card-title" style={{ marginBottom: 20 }}>Change Password</h3>
+
+          {pwMsg && <div className="alert alert-success" style={{ marginBottom: 16 }}>{pwMsg}</div>}
+          {pwErr && <div className="alert alert-error"   style={{ marginBottom: 16 }}>{pwErr}</div>}
+
+          <form onSubmit={handleChangePassword} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <PwField
+              label="Current Password"
+              value={pwForm.current}
+              onChange={(e) => setPwForm({ ...pwForm, current: e.target.value })}
+              placeholder="Your current password"
+              show={showCurrent}
+              onToggle={() => setShowCurrent(v => !v)}
+            />
+            <PwField
+              label="New Password"
+              value={pwForm.next}
+              onChange={(e) => setPwForm({ ...pwForm, next: e.target.value })}
+              placeholder="At least 6 characters"
+              show={showNew}
+              onToggle={() => setShowNew(v => !v)}
+            />
+            <PwField
+              label="Confirm New Password"
+              value={pwForm.confirm}
+              onChange={(e) => setPwForm({ ...pwForm, confirm: e.target.value })}
+              placeholder="Repeat new password"
+              show={showConfirm}
+              onToggle={() => setShowConfirm(v => !v)}
+            />
+            <div>
+              <button className="btn btn-primary" type="submit" disabled={pwSaving}>
+                {pwSaving ? <><div className="spinner" /> Updating…</> : 'Update Password'}
+              </button>
+            </div>
+          </form>
         </div>
 
         {/* ── Appearance ── */}
@@ -109,37 +211,13 @@ export default function Settings() {
                 {theme === 'dark' ? 'Using dark theme' : 'Using light theme'}
               </div>
             </div>
-            <button
-              className="theme-switch"
-              onClick={toggleTheme}
-              data-on={theme === 'dark'}
-              aria-label="Toggle dark mode"
-            >
+            <button className="theme-switch" onClick={toggleTheme} data-on={theme === 'dark'} aria-label="Toggle dark mode">
               <span className="theme-switch-thumb" />
             </button>
           </div>
         </div>
 
-        {/* ── Security ── */}
-        <div className="card card-pad">
-          <h3 className="card-title" style={{ marginBottom: 16 }}>Security</h3>
-          <div style={{ fontSize: '.88rem', color: 'var(--text-2)', lineHeight: 1.7 }}>
-            To change your password, sign out and use{' '}
-            <a href="/forgot-password" style={{ color: 'var(--accent-green)', fontWeight: 600 }}>Forgot password</a>{' '}
-            on the login page. A reset link will be sent to your email.
-          </div>
-        </div>
-
       </div>
     </AppLayout>
-  );
-}
-
-function Row({ label, value }) {
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-      <span className="form-label">{label}</span>
-      <span style={{ fontSize: '.9rem', color: 'var(--text-1)' }}>{value}</span>
-    </div>
   );
 }

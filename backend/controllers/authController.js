@@ -2,7 +2,7 @@ const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 const User = require('../models/User');
 const generateToken = require('../utils/generateToken');
-const { sendEmail, resetTemplate } = require('../utils/sendEmail');
+const { sendEmail, resetTemplate, codeTemplate } = require('../utils/sendEmail');
 
 /* ── Register ── */
 const registerUser = async (req, res, next) => {
@@ -69,7 +69,7 @@ const loginUser = async (req, res, next) => {
     }
 };
 
-/* ── Forgot Password ── */
+/* ── Forgot Password — sends 6-digit code ── */
 const forgotPassword = async (req, res, next) => {
     try {
         const { email } = req.body;
@@ -81,26 +81,60 @@ const forgotPassword = async (req, res, next) => {
 
         // Always respond the same way to avoid user enumeration
         if (!user) {
-            return res.json({ message: 'If that email is registered, a reset link has been sent' });
+            return res.json({ message: 'If that email is registered, a code has been sent' });
         }
 
-        // Generate raw token → hash for storage
-        const rawToken = crypto.randomBytes(32).toString('hex');
-        const hashedToken = crypto.createHash('sha256').update(rawToken).digest('hex');
+        // Generate 6-digit numeric code and store its hash
+        const code = String(Math.floor(100000 + Math.random() * 900000));
+        const hashedCode = crypto.createHash('sha256').update(code).digest('hex');
 
-        user.resetPasswordToken = hashedToken;
+        user.resetPasswordToken   = hashedCode;
         user.resetPasswordExpires = new Date(Date.now() + 15 * 60 * 1000); // 15 min
         await user.save();
 
-        const resetUrl = `${process.env.CLIENT_URL}/reset-password/${rawToken}`;
-
         await sendEmail({
-            to: user.email,
-            subject: 'Reset your AjoFlow password',
-            html: resetTemplate(resetUrl),
+            to:      user.email,
+            subject: 'Your AjoFlow password reset code',
+            html:    codeTemplate(code),
         });
 
-        res.json({ message: 'If that email is registered, a reset link has been sent' });
+        res.json({ message: 'If that email is registered, a code has been sent' });
+    } catch (error) {
+        next(error);
+    }
+};
+
+/* ── Verify 6-digit reset code + set new password ── */
+const verifyResetCode = async (req, res, next) => {
+    try {
+        const { email, code, password } = req.body;
+
+        if (!email?.trim() || !code?.trim() || !password) {
+            return res.status(400).json({ message: 'Email, code, and new password are required' });
+        }
+        if (password.length < 6) {
+            return res.status(400).json({ message: 'Password must be at least 6 characters' });
+        }
+
+        const hashedCode = crypto.createHash('sha256').update(code.trim()).digest('hex');
+
+        const user = await User.findOne({
+            email:                email.toLowerCase().trim(),
+            resetPasswordToken:   hashedCode,
+            resetPasswordExpires: { $gt: new Date() },
+        });
+
+        if (!user) {
+            return res.status(400).json({ message: 'Invalid or expired code. Please request a new one.' });
+        }
+
+        const salt = await bcrypt.genSalt(10);
+        user.password             = await bcrypt.hash(password, salt);
+        user.resetPasswordToken   = undefined;
+        user.resetPasswordExpires = undefined;
+        await user.save();
+
+        res.json({ message: 'Password changed successfully. You can now sign in.' });
     } catch (error) {
         next(error);
     }
@@ -167,4 +201,34 @@ const updateProfile = async (req, res, next) => {
     }
 };
 
-module.exports = { registerUser, loginUser, forgotPassword, resetPassword, getMe, updateProfile };
+/* ── Change password (logged-in user) ── */
+const changePassword = async (req, res, next) => {
+    try {
+        const { currentPassword, newPassword } = req.body;
+
+        if (!currentPassword || !newPassword) {
+            return res.status(400).json({ message: 'Current password and new password are required' });
+        }
+        if (newPassword.length < 6) {
+            return res.status(400).json({ message: 'New password must be at least 6 characters' });
+        }
+
+        const user = await User.findById(req.user._id);
+        if (!(await user.matchPassword(currentPassword))) {
+            return res.status(400).json({ message: 'Current password is incorrect' });
+        }
+        if (currentPassword === newPassword) {
+            return res.status(400).json({ message: 'New password must be different from current password' });
+        }
+
+        const salt = await bcrypt.genSalt(10);
+        user.password = await bcrypt.hash(newPassword, salt);
+        await user.save();
+
+        res.json({ message: 'Password changed successfully' });
+    } catch (error) {
+        next(error);
+    }
+};
+
+module.exports = { registerUser, loginUser, forgotPassword, verifyResetCode, resetPassword, getMe, updateProfile, changePassword };

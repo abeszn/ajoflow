@@ -285,7 +285,8 @@ input, select, textarea { font-family: var(--font); }
 .card-title  { font-size: .95rem; font-weight: 700; color: var(--text-1); }
 
 /* ===== GRID LAYOUTS ===== */
-.dash-grid { display: grid; grid-template-columns: 1fr 320px 200px; gap: 18px; }
+.dash-grid    { display: grid; grid-template-columns: 1fr 320px 200px; gap: 18px; }
+.reports-grid { display: grid; grid-template-columns: 1fr 300px; gap: 18px; margin-bottom: 18px; }
 .col-span-full { grid-column: 1 / -1; }
 
 /* ===== TABLE ===== */
@@ -593,8 +594,9 @@ tbody td { padding: 13px 16px; font-size: .85rem; color: var(--text-1); vertical
 /* ===== RESPONSIVE ===== */
 @media (max-width: 1100px) {
   .stats-row { grid-template-columns: repeat(2,1fr); }
-  .dash-grid { grid-template-columns: 1fr; }
+  .dash-grid  { grid-template-columns: 1fr; }
   .groups-grid { grid-template-columns: repeat(2,1fr); }
+  .reports-grid { grid-template-columns: 1fr; }
 }
 @media (max-width: 768px) {
   .sidebar { transform: translateX(-100%); }
@@ -602,19 +604,45 @@ tbody td { padding: 13px 16px; font-size: .85rem; color: var(--text-1); vertical
   .sidebar-overlay.open { display: block; }
   .main-content { margin-left: 0; }
   .hamburger { display: flex; }
-  .page-body { padding: 16px; }
-  .topbar { padding: 0 16px; }
+  .page-body { padding: 14px 12px; }
+  .topbar { padding: 0 14px; }
   .auth-left { display: none; }
-  .stats-row { grid-template-columns: 1fr 1fr; gap: 12px; }
+  .stats-row { grid-template-columns: 1fr 1fr; gap: 10px; }
   .groups-grid { grid-template-columns: 1fr; }
   .topbar-avatar { display: none; }
-  table { min-width: 560px; }
+  table { min-width: 520px; }
+  /* Tabs scroll horizontally on small screens */
+  .tabs { overflow-x: auto; -webkit-overflow-scrolling: touch; flex-wrap: nowrap; padding-bottom: 2px; }
+  .tab-btn { white-space: nowrap; flex-shrink: 0; }
+  /* Filters bar stacks on mobile */
+  .filters-mobile-stack { flex-direction: column !important; align-items: stretch !important; }
+  /* Modals — full-width on mobile */
+  .modal { margin: 8px; border-radius: var(--r-lg); max-width: calc(100vw - 16px) !important; }
+  .modal-overlay { align-items: flex-end; padding: 0; }
+  .stat-card { padding: 14px 12px 14px 18px; }
+  .stat-value { font-size: 1.3rem; }
 }
 @media (max-width: 480px) {
-  .stats-row { grid-template-columns: 1fr; }
-  .modal { border-radius: var(--r-lg); }
+  .stats-row { grid-template-columns: 1fr 1fr; gap: 8px; }
+  .modal { border-radius: var(--r-lg) var(--r-lg) 0 0; max-height: 92vh; }
   .auth-form-title { font-size: 1.4rem; }
+  .page-body { padding: 12px 10px; }
+  .card-pad { padding: 16px; }
+  .group-card-body { padding: 14px 14px; }
 }
+
+/* ── Dashboard mobile contribution display ── */
+.dash-contrib-table { display: block; }
+.dash-contrib-cards { display: none; }
+@media (max-width: 640px) {
+  .dash-contrib-table { display: none; }
+  .dash-contrib-cards { display: flex; flex-direction: column; }
+}
+.dash-contrib-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 16px; border-bottom: 1px solid var(--border);
+}
+.dash-contrib-row:last-child { border-bottom: none; }
 
 /* ===== THEME TOGGLE ===== */
 .theme-toggle-btn {

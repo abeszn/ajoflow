@@ -11,11 +11,9 @@ import ResetPassword   from './pages/ResetPassword';
 import Dashboard       from './pages/Dashboard';
 import Groups          from './pages/Groups';
 import Contributions   from './pages/Contributions';
-import { BarChart3 } from 'lucide-react';
 import Settings        from './pages/Settings';
 import Payouts         from './pages/Payouts';
-import ComingSoon      from './pages/ComingSoon';
-const Reports = () => <ComingSoon icon={<BarChart3 size={52} strokeWidth={1.3} />} title="Reports" description="Detailed analytics and savings reports across all your groups." />;
+import Reports         from './pages/Reports';
 
 export default function App() {
   return (

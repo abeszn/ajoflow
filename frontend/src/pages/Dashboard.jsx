@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Wallet, CreditCard } from 'lucide-react';
+import { Wallet, CreditCard, Users, TrendingUp } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import AppLayout from '../components/AppLayout';
@@ -69,7 +69,7 @@ function DonutChart({ paid, pending, missed }) {
   );
 }
 
-const FREQ = { daily: 'Daily', weekly: 'Weekly', monthly: 'Monthly' };
+const FREQ  = { daily: 'Daily', weekly: 'Weekly', monthly: 'Monthly' };
 const PITEM = ['pitem-green', 'pitem-blue', 'pitem-violet', 'pitem-orange'];
 
 export default function Dashboard() {
@@ -82,16 +82,13 @@ export default function Dashboard() {
   useEffect(() => {
     API.get('/dashboard')
       .then(({ data: d }) => setData(d))
-      .catch(() => setError('Could not load dashboard data. Make sure the server is running.'))
+      .catch(() => setError('Could not load dashboard. Make sure the server is running.'))
       .finally(() => setLoading(false));
   }, []);
-
-  const firstName = user?.name?.split(' ')[0] || 'there';
 
   if (loading) return <AppLayout><Spinner /></AppLayout>;
   if (error)   return <AppLayout><div className="alert alert-error" style={{ marginTop: 20 }}>{error}</div></AppLayout>;
 
-  // Defensive — handle both old and new API response shapes
   const stats = data?.stats ?? {
     totalSaved:         data?.myStats?.totalSaved ?? 0,
     groupsJoined:       data?.myStats?.groupsJoined ?? 0,
@@ -104,12 +101,10 @@ export default function Dashboard() {
   };
   const recentContributions = data?.recentContributions ?? data?.recentTransactions ?? [];
   const groups              = data?.groups ?? data?.myStats?.groups ?? [];
-
-  const noActivity = recentContributions.length === 0 && groups.length === 0;
+  const noActivity          = recentContributions.length === 0 && groups.length === 0;
 
   return (
     <AppLayout>
-      {/* No-activity empty state */}
       {noActivity ? (
         <div className="card card-pad" style={{ textAlign: 'center', padding: '60px 24px' }}>
           <div style={{ marginBottom: 16, opacity: .25 }}><Wallet size={52} strokeWidth={1.2} /></div>
@@ -121,32 +116,33 @@ export default function Dashboard() {
         </div>
       ) : (
         <>
-          {/* Stat cards */}
+          {/* ── Stat cards ── */}
           <div className="stats-row">
             <div className="stat-card green">
               <div className="stat-label">Total Saved</div>
               <div className="stat-value">{fmt(stats.totalSaved)}</div>
-              <div className="stat-sub">{stats.totalContributions} contribution{stats.totalContributions !== 1 ? 's' : ''} made</div>
+              <div className="stat-sub">{stats.totalContributions} contribution{stats.totalContributions !== 1 ? 's' : ''}</div>
             </div>
             <div className="stat-card blue">
-              <div className="stat-label">Groups Joined</div>
+              <div className="stat-label">Groups</div>
               <div className="stat-value">{stats.groupsJoined}</div>
               <div className="stat-sub">active group{stats.groupsJoined !== 1 ? 's' : ''}</div>
             </div>
             <div className="stat-card violet">
               <div className="stat-label">Pending</div>
               <div className="stat-value">{fmt(stats.pendingAmount)}</div>
-              <div className="stat-sub">{stats.pendingCount} payment{stats.pendingCount !== 1 ? 's' : ''} pending</div>
+              <div className="stat-sub">{stats.pendingCount} payment{stats.pendingCount !== 1 ? 's' : ''}</div>
             </div>
             <div className="stat-card orange">
               <div className="stat-label">Missed</div>
               <div className="stat-value">{stats.missedCount}</div>
-              <div className="stat-sub">{fmt(stats.missedAmount)} total missed</div>
+              <div className="stat-sub">{fmt(stats.missedAmount)} total</div>
             </div>
           </div>
 
-          {/* Main grid */}
+          {/* ── Main grid ── */}
           <div className="dash-grid">
+
             {/* Recent contributions */}
             <div className="card">
               <div className="card-pad" style={{ paddingBottom: 0 }}>
@@ -161,29 +157,54 @@ export default function Dashboard() {
                   <p className="empty-text">No contributions yet.</p>
                 </div>
               ) : (
-                <div className="table-wrap">
-                  <table>
-                    <thead><tr><th>Group</th><th>Amount</th><th>Date</th><th>Status</th></tr></thead>
-                    <tbody>
-                      {recentContributions.map((tx) => (
-                        <tr key={tx._id}>
-                          <td className="fw-600">{tx.group?.groupName || '—'}</td>
-                          <td className="fw-600 text-green">{fmt(tx.amount)}</td>
-                          <td className="text-muted">{fmtDate(tx.createdAt)}</td>
-                          <td><StatusBadge status={tx.status} /></td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                <>
+                  {/* Table for wider screens */}
+                  <div className="table-wrap dash-contrib-table">
+                    <table>
+                      <thead>
+                        <tr><th>Group</th><th>Amount</th><th>Date</th><th>Status</th></tr>
+                      </thead>
+                      <tbody>
+                        {recentContributions.map((tx) => (
+                          <tr key={tx._id}>
+                            <td className="fw-600">{tx.group?.groupName || '—'}</td>
+                            <td className="fw-600 text-green">{fmt(tx.amount)}</td>
+                            <td className="text-muted">{fmtDate(tx.createdAt)}</td>
+                            <td><StatusBadge status={tx.status} /></td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  {/* Card list for mobile */}
+                  <div className="dash-contrib-cards">
+                    {recentContributions.map((tx) => (
+                      <div key={tx._id} className="dash-contrib-row">
+                        <div>
+                          <div className="fw-600" style={{ fontSize: '.88rem' }}>{tx.group?.groupName || '—'}</div>
+                          <div className="text-muted" style={{ fontSize: '.75rem', marginTop: 2 }}>{fmtDate(tx.createdAt)}</div>
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
+                          <span className="fw-700 text-green" style={{ fontSize: '.9rem' }}>{fmt(tx.amount)}</span>
+                          <StatusBadge status={tx.status} />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </>
               )}
             </div>
 
             {/* My Groups */}
-            <div>
-              <div style={{ fontWeight: 700, fontSize: '.95rem', marginBottom: 14, color: 'var(--text-1)' }}>My Groups</div>
+            <div className="card card-pad">
+              <div className="card-header">
+                <span className="card-title">My Groups</span>
+                <button className="btn-link" onClick={() => navigate('/groups')}>
+                  <Users size={14} /> All
+                </button>
+              </div>
               {groups.length === 0 ? (
-                <div className="card card-pad" style={{ textAlign: 'center', padding: '28px 16px' }}>
+                <div style={{ textAlign: 'center', padding: '20px 0' }}>
                   <p style={{ color: 'var(--text-2)', fontSize: '.85rem', marginBottom: 12 }}>No groups yet.</p>
                   <button className="btn btn-primary btn-sm" onClick={() => navigate('/groups')}>Browse Groups</button>
                 </div>
@@ -199,16 +220,20 @@ export default function Dashboard() {
             </div>
 
             {/* Savings breakdown */}
-            <div>
-              <div style={{ fontWeight: 700, fontSize: '.95rem', marginBottom: 14, color: 'var(--text-1)' }}>Savings Breakdown</div>
+            <div className="card card-pad">
+              <div className="card-header" style={{ marginBottom: 20 }}>
+                <span className="card-title">Breakdown</span>
+                <TrendingUp size={16} color="var(--text-3)" strokeWidth={1.8} />
+              </div>
               {stats.totalContributions === 0 ? (
-                <div className="card card-pad" style={{ textAlign: 'center', padding: '28px 16px' }}>
-                  <p style={{ color: 'var(--text-2)', fontSize: '.85rem' }}>No contribution data yet.</p>
+                <div style={{ textAlign: 'center', padding: '20px 0' }}>
+                  <p style={{ color: 'var(--text-2)', fontSize: '.85rem' }}>No data yet.</p>
                 </div>
               ) : (
                 <DonutChart paid={stats.paidAmount} pending={stats.pendingAmount} missed={stats.missedAmount} />
               )}
             </div>
+
           </div>
         </>
       )}

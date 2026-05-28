@@ -7,14 +7,16 @@ const {
     joinGroup,
     leaveGroup,
     deleteGroup,
+    renameGroup,
 } = require('../controllers/groupController');
 const { protect } = require('../middleware/authMiddleware');
 
-router.get('/',          protect, getGroups);
-router.post('/',         protect, createGroup);
-router.get('/:id',       protect, getGroupById);
-router.post('/:id/join', protect, joinGroup);
-router.post('/:id/leave',protect, leaveGroup);
-router.delete('/:id',    protect, deleteGroup);
+router.get('/',               protect, getGroups);
+router.post('/',              protect, createGroup);
+router.get('/:id',            protect, getGroupById);
+router.put('/:id/rename',     protect, renameGroup);
+router.post('/:id/join',      protect, joinGroup);
+router.post('/:id/leave',     protect, leaveGroup);
+router.delete('/:id',         protect, deleteGroup);
 
 module.exports = router;

@@ -173,4 +173,48 @@ const resetTemplate = (resetUrl) => `<!DOCTYPE html>
 </body>
 </html>`;
 
-module.exports = { sendEmail, otpTemplate, resetTemplate };
+/* ─── Password-reset code email ─── */
+const codeTemplate = (code) => {
+  const digitCells = String(code).split('').map(d => `
+    <td style="padding:0 5px;">
+      <div style="width:52px;height:68px;background:#F0FDF4;border:2px solid #BBF7D0;border-radius:12px;
+                  text-align:center;line-height:68px;font-size:2rem;font-weight:800;
+                  color:#0E2B1A;font-family:'Courier New',monospace;">${d}</div>
+    </td>`).join('');
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Your AjoFlow Reset Code</title></head>
+<body style="${BASE}">
+  <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="padding:48px 20px;">
+    <tr><td align="center">
+      <table width="560" cellpadding="0" cellspacing="0" role="presentation"
+             style="background:#fff;border-radius:20px;overflow:hidden;box-shadow:0 8px 40px rgba(0,0,0,.10);max-width:100%;">
+        ${header}
+        <tr><td style="padding:40px 40px 10px;text-align:center;">
+          <h1 style="margin:0 0 10px;font-size:1.55rem;font-weight:800;color:#0E2B1A;letter-spacing:-.025em;">
+            Password Reset Code
+          </h1>
+          <p style="margin:0 0 32px;font-size:.93rem;color:#6B7280;line-height:1.65;">
+            Enter this 6-digit code to reset your password.<br>
+            It expires in <strong style="color:#111827;">15 minutes</strong>.
+          </p>
+          <table cellpadding="0" cellspacing="0" align="center" style="margin:0 auto 36px;">
+            <tr>${digitCells}</tr>
+          </table>
+          <div style="background:#F9FAFB;border-radius:10px;padding:14px 24px;margin-bottom:8px;
+                      border:1px solid #E5E7EB;display:inline-block;">
+            <p style="margin:0;font-size:.82rem;color:#6B7280;">
+              Never share this code with anyone — AjoFlow staff will never ask for it.
+            </p>
+          </div>
+        </td></tr>
+        ${footer}
+      </table>
+    </td></tr>
+  </table>
+</body></html>`;
+};
+
+module.exports = { sendEmail, otpTemplate, resetTemplate, codeTemplate };

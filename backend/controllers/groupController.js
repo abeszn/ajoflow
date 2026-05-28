@@ -147,4 +147,32 @@ const deleteGroup = async (req, res, next) => {
     }
 };
 
-module.exports = { createGroup, getGroups, getGroupById, joinGroup, leaveGroup, deleteGroup };
+const renameGroup = async (req, res, next) => {
+    try {
+        const { groupName } = req.body;
+        if (!groupName?.trim()) {
+            return res.status(400).json({ message: 'Group name is required' });
+        }
+
+        const group = await Group.findById(req.params.id);
+        if (!group) return res.status(404).json({ message: 'Group not found' });
+
+        if (group.admin.toString() !== req.user._id.toString()) {
+            return res.status(403).json({ message: 'Only the group admin can rename this group' });
+        }
+
+        group.groupName = groupName.trim();
+        await group.save();
+
+        const populated = await group.populate([
+            { path: 'admin',   select: 'name email' },
+            { path: 'members', select: 'name email' },
+        ]);
+
+        res.json(populated);
+    } catch (error) {
+        next(error);
+    }
+};
+
+module.exports = { createGroup, getGroups, getGroupById, joinGroup, leaveGroup, deleteGroup, renameGroup };

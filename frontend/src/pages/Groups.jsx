@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Users, Calendar, Banknote, Crown, X, CheckCircle, Clock, XCircle } from 'lucide-react';
+import { Users, Calendar, Banknote, Crown, X, CheckCircle, Clock, XCircle, Pencil } from 'lucide-react';
 import AppLayout from '../components/AppLayout';
 import API from '../services/api';
 import { useAuth } from '../context/AuthContext';
@@ -29,10 +29,21 @@ const defaultPeriod = (frequency) => {
 };
 
 /* ══════════════════ View Details Modal ══════════════════ */
-function DetailsModal({ group, onClose }) {
-  const [detail, setDetail] = useState(null);
+function DetailsModal({ group, onClose, onRenamed }) {
+  const { user }  = useAuth();
+  const [detail, setDetail]   = useState(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError]   = useState('');
+  const [error, setError]     = useState('');
+
+  // Rename state
+  const [renaming, setRenaming]     = useState(false);
+  const [newName, setNewName]       = useState('');
+  const [renameErr, setRenameErr]   = useState('');
+  const [renaming2, setRenaming2]   = useState(false);
+
+  const isGroupAdmin = detail
+    ? (detail.admin?._id || detail.admin) === user?._id
+    : false;
 
   useEffect(() => {
     API.get(`/groups/${group._id}`)
@@ -41,13 +52,59 @@ function DetailsModal({ group, onClose }) {
       .finally(() => setLoading(false));
   }, [group._id]);
 
+  const handleRename = async (e) => {
+    e.preventDefault();
+    setRenameErr(''); setRenaming2(true);
+    try {
+      await API.put(`/groups/${group._id}/rename`, { groupName: newName.trim() });
+      setDetail(d => ({ ...d, groupName: newName.trim() }));
+      setRenaming(false);
+      onRenamed(newName.trim());
+    } catch (err) {
+      setRenameErr(err.response?.data?.message || 'Could not rename group.');
+    } finally {
+      setRenaming2(false);
+    }
+  };
+
   return (
     <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div className="modal" style={{ maxWidth: 560, maxHeight: '88vh', overflowY: 'auto' }}>
         <div className="modal-header">
-          <h3 style={{ fontWeight: 700 }}>{group.groupName}</h3>
-          <button className="modal-close" onClick={onClose}><X size={18} /></button>
+          <h3 style={{ fontWeight: 700 }}>{detail?.groupName || group.groupName}</h3>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            {isGroupAdmin && !renaming && (
+              <button
+                onClick={() => { setRenaming(true); setNewName(detail?.groupName || group.groupName); setRenameErr(''); }}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-3)', padding: 4, display: 'flex', alignItems: 'center' }}
+                title="Rename group"
+              >
+                <Pencil size={15} strokeWidth={2} />
+              </button>
+            )}
+            <button className="modal-close" onClick={onClose}><X size={18} /></button>
+          </div>
         </div>
+
+        {/* Inline rename form */}
+        {renaming && (
+          <form onSubmit={handleRename} style={{ marginBottom: 18, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <input
+              className="form-input"
+              style={{ flex: 1, minWidth: 160 }}
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              placeholder="New group name"
+              autoFocus
+              required
+            />
+            <button className="btn btn-primary btn-sm" type="submit" disabled={renaming2}>
+              {renaming2 ? 'Saving…' : 'Save'}
+            </button>
+            <button className="btn btn-ghost btn-sm" type="button" onClick={() => setRenaming(false)}>Cancel</button>
+            {renameErr && <div className="alert alert-error" style={{ width: '100%', marginTop: 4, marginBottom: 0 }}>{renameErr}</div>}
+          </form>
+        )}
 
         {loading ? (
           <div style={{ display: 'flex', justifyContent: 'center', padding: '40px 0' }}>
@@ -398,7 +455,13 @@ export default function Groups() {
 
       {/* View Details Modal */}
       {detailGroup && (
-        <DetailsModal group={detailGroup} onClose={() => setDetailGroup(null)} />
+        <DetailsModal
+          group={detailGroup}
+          onClose={() => setDetailGroup(null)}
+          onRenamed={(newName) => {
+            setGroups(gs => gs.map(g => g._id === detailGroup._id ? { ...g, groupName: newName } : g));
+          }}
+        />
       )}
 
       {/* Contribute Modal */}
