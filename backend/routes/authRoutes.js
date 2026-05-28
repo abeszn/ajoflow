@@ -1,13 +1,13 @@
 const express = require('express');
 const router  = express.Router();
-const { syncProfile, getMe, updateProfile } = require('../controllers/authController');
+const { registerUser, loginUser, forgotPassword, getMe, updateProfile, changePassword } = require('../controllers/authController');
 const { protect } = require('../middleware/authMiddleware');
 
-// Create / link MongoDB profile after Supabase signup (no protect — verifies JWT internally)
-router.post('/profile', syncProfile);
-
-// Authenticated profile endpoints
-router.get('/me',  protect, getMe);
-router.put('/me',  protect, updateProfile);
+router.post('/register',        registerUser);
+router.post('/login',           loginUser);
+router.post('/forgot-password', forgotPassword);
+router.get('/me',               protect, getMe);
+router.put('/me',               protect, updateProfile);
+router.put('/change-password',  protect, changePassword);
 
 module.exports = router;

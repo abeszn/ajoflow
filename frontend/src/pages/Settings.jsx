@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
-import { supabase } from '../lib/supabase';
 import AppLayout from '../components/AppLayout';
 import API from '../services/api';
 
@@ -42,8 +41,8 @@ function PwField({ label, value, onChange, placeholder, show, onToggle }) {
 }
 
 export default function Settings() {
-  const { user, updateUser }     = useAuth();
-  const { theme, toggleTheme }   = useTheme();
+  const { user, login }        = useAuth();
+  const { theme, toggleTheme } = useTheme();
 
   /* ── Profile edit ── */
   const [editing, setEditing]   = useState(false);
@@ -61,13 +60,12 @@ export default function Settings() {
   const [showNew,     setShowNew]     = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
 
-  /* ── Save profile (MongoDB) ── */
   const handleSave = async (e) => {
     e.preventDefault();
     setSaving(true); setSaveMsg(''); setSaveErr('');
     try {
       const { data } = await API.put('/auth/me', { name: form.name, phone: form.phone });
-      updateUser(data);
+      login({ ...user, ...data });
       setEditing(false);
       setSaveMsg('Profile updated successfully.');
       setTimeout(() => setSaveMsg(''), 4000);
@@ -78,35 +76,22 @@ export default function Settings() {
     }
   };
 
-  /* ── Change password (Supabase) ── */
   const handleChangePassword = async (e) => {
     e.preventDefault();
     setPwMsg(''); setPwErr('');
     if (pwForm.next !== pwForm.confirm) return setPwErr('New passwords do not match.');
     if (pwForm.next.length < 6)         return setPwErr('New password must be at least 6 characters.');
-    if (pwForm.current === pwForm.next)  return setPwErr('New password must be different from the current one.');
-
     setPwSaving(true);
     try {
-      // Verify current password by re-authenticating
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error('Session expired. Please sign in again.');
-
-      const { error: signInErr } = await supabase.auth.signInWithPassword({
-        email:    session.user.email,
-        password: pwForm.current,
+      await API.put('/auth/change-password', {
+        currentPassword: pwForm.current,
+        newPassword:     pwForm.next,
       });
-      if (signInErr) { setPwErr('Current password is incorrect.'); return; }
-
-      // Update to new password
-      const { error: updateErr } = await supabase.auth.updateUser({ password: pwForm.next });
-      if (updateErr) throw updateErr;
-
       setPwMsg('Password changed successfully.');
       setPwForm({ current: '', next: '', confirm: '' });
       setTimeout(() => setPwMsg(''), 5000);
     } catch (err) {
-      setPwErr(err.message || 'Failed to change password. Please try again.');
+      setPwErr(err.response?.data?.message || 'Failed to change password.');
     } finally {
       setPwSaving(false);
     }

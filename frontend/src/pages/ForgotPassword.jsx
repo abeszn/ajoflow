@@ -1,74 +1,104 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Lock, MailCheck } from 'lucide-react';
-import { supabase } from '../lib/supabase';
+import { Lock, CheckCircle, Eye, EyeOff } from 'lucide-react';
+import API from '../services/api';
 import ThemeToggle from '../components/ThemeToggle';
 
+function PwField({ label, value, onChange, placeholder, show, onToggle }) {
+  return (
+    <div className="form-group">
+      <label className="form-label">{label}</label>
+      <div style={{ position: 'relative' }}>
+        <input
+          className="form-input"
+          type={show ? 'text' : 'password'}
+          placeholder={placeholder}
+          value={value}
+          onChange={onChange}
+          style={{ paddingRight: 42 }}
+          required
+          minLength={6}
+        />
+        <button
+          type="button"
+          onClick={onToggle}
+          style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-3)', padding: 2 }}
+        >
+          {show ? <EyeOff size={16} /> : <Eye size={16} />}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function ForgotPassword() {
-  const [step, setStep]       = useState(1); // 1 = enter email, 2 = check inbox
-  const [email, setEmail]     = useState('');
-  const [loading, setLoading] = useState(false);
-  const [error, setError]     = useState('');
+  const [email, setEmail]       = useState('');
+  const [password, setPassword] = useState('');
+  const [confirm, setConfirm]   = useState('');
+  const [showPw, setShowPw]     = useState(false);
+  const [showCf, setShowCf]     = useState(false);
+  const [loading, setLoading]   = useState(false);
+  const [error, setError]       = useState('');
+  const [done, setDone]         = useState(false);
 
-  useEffect(() => { document.title = 'Forgot Password | AjoFlow'; }, []);
+  useEffect(() => { document.title = 'Reset Password | AjoFlow'; }, []);
 
-  const handleSendLink = async (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    if (password !== confirm)  return setError('Passwords do not match.');
+    if (password.length < 6)   return setError('Password must be at least 6 characters.');
     setLoading(true);
     try {
-      const { error: sbError } = await supabase.auth.resetPasswordForEmail(
-        email.trim(),
-        { redirectTo: `${window.location.origin}/reset-password` }
-      );
-      if (sbError) throw sbError;
-      setStep(2);
+      await API.post('/auth/forgot-password', { email: email.trim(), password });
+      setDone(true);
     } catch (err) {
-      setError(err.message || 'Something went wrong. Please try again.');
+      setError(err.response?.data?.message || 'No account found with that email.');
     } finally {
       setLoading(false);
     }
   };
 
+  const leftPanel = (
+    <div className="auth-left">
+      <div className="auth-left-bar" />
+      <div className="auth-left-blob" style={{ width: 500, height: 500, top: 170, left: -80 }} />
+      <div className="auth-left-blob" style={{ width: 300, height: 300, top: 700, left: 200 }} />
+      <div className="auth-left-inner">
+        <div className="auth-logo">
+          <div className="logo-box">A</div>
+          <span className="logo-name">AjoFlow</span>
+        </div>
+        <div className="auth-hero">
+          <h1>Save Together,<br />Thrive Together.</h1>
+          <p>Digitising Ajo &amp; Esusu for modern cooperatives across Nigeria.</p>
+        </div>
+        <div />
+      </div>
+    </div>
+  );
+
   return (
     <div className="auth-layout">
-      {/* Left panel */}
-      <div className="auth-left">
-        <div className="auth-left-bar" />
-        <div className="auth-left-blob" style={{ width: 500, height: 500, top: 170, left: -80 }} />
-        <div className="auth-left-blob" style={{ width: 300, height: 300, top: 700, left: 200 }} />
-        <div className="auth-left-inner">
-          <div className="auth-logo">
-            <div className="logo-box">A</div>
-            <span className="logo-name">AjoFlow</span>
-          </div>
-          <div className="auth-hero">
-            <h1>Save Together,<br />Thrive Together.</h1>
-            <p>Digitising Ajo &amp; Esusu for modern cooperatives across Nigeria.</p>
-          </div>
-          <div />
-        </div>
-      </div>
+      {leftPanel}
 
-      {/* Right panel */}
       <div className="auth-right">
         <ThemeToggle className="auth-theme-btn" />
         <div className="auth-form-wrap">
 
-          {/* ── Step 1: Enter email ── */}
-          {step === 1 && (
+          {!done ? (
             <>
               <div style={{ marginBottom: 16, color: 'var(--text-3)' }}>
                 <Lock size={44} strokeWidth={1.4} />
               </div>
-              <h2 className="auth-form-title">Forgot password?</h2>
+              <h2 className="auth-form-title">Reset password</h2>
               <p className="auth-form-subtitle">
-                Enter your email and we'll send a secure reset link.
+                Enter your email and choose a new password.
               </p>
 
               {error && <div className="alert alert-error">{error}</div>}
 
-              <form onSubmit={handleSendLink}>
+              <form onSubmit={handleSubmit}>
                 <div className="form-group">
                   <label className="form-label">Email Address</label>
                   <input
@@ -80,42 +110,50 @@ export default function ForgotPassword() {
                     required
                   />
                 </div>
-                <button className="btn btn-primary btn-full btn-lg" type="submit" disabled={loading}>
-                  {loading ? <><div className="spinner" /> Sending…</> : 'Send Reset Link'}
+
+                <PwField
+                  label="New Password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="At least 6 characters"
+                  show={showPw}
+                  onToggle={() => setShowPw((v) => !v)}
+                />
+
+                <PwField
+                  label="Confirm New Password"
+                  value={confirm}
+                  onChange={(e) => setConfirm(e.target.value)}
+                  placeholder="Repeat new password"
+                  show={showCf}
+                  onToggle={() => setShowCf((v) => !v)}
+                />
+
+                <button className="btn btn-primary btn-full btn-lg" type="submit" disabled={loading} style={{ marginTop: 4 }}>
+                  {loading ? <><div className="spinner" /> Saving…</> : 'Reset Password'}
                 </button>
               </form>
             </>
-          )}
-
-          {/* ── Step 2: Check inbox ── */}
-          {step === 2 && (
+          ) : (
             <div style={{ textAlign: 'center' }}>
               <div style={{ marginBottom: 16, color: 'var(--accent-green)', display: 'flex', justifyContent: 'center' }}>
-                <MailCheck size={52} strokeWidth={1.4} />
+                <CheckCircle size={52} strokeWidth={1.4} />
               </div>
-              <h2 className="auth-form-title">Check your inbox</h2>
-              <p style={{ color: 'var(--text-2)', fontSize: '.9rem', lineHeight: 1.75, marginBottom: 8 }}>
-                A password reset link was sent to
+              <h2 className="auth-form-title">Password updated!</h2>
+              <p style={{ color: 'var(--text-2)', fontSize: '.9rem', lineHeight: 1.7, marginBottom: 28 }}>
+                Your password has been changed successfully. Sign in with your new password.
               </p>
-              <p style={{ fontWeight: 700, color: 'var(--text-1)', fontSize: '.95rem', marginBottom: 20, wordBreak: 'break-all' }}>
-                {email}
-              </p>
-              <p style={{ color: 'var(--text-3)', fontSize: '.82rem', lineHeight: 1.7, marginBottom: 28 }}>
-                Click the link in the email to create a new password.
-                The link expires in 1 hour. Check your spam folder if you don't see it.
-              </p>
-              <button
-                className="btn btn-ghost btn-full"
-                onClick={() => { setStep(1); setError(''); }}
-              >
-                ← Try a different email
-              </button>
+              <Link to="/login">
+                <button className="btn btn-primary btn-full btn-lg">Go to Sign In</button>
+              </Link>
             </div>
           )}
 
-          <p className="auth-footer-text" style={{ marginTop: 28 }}>
-            <Link to="/login" style={{ color: '#6B7280', fontSize: '.85rem' }}>← Back to Sign In</Link>
-          </p>
+          {!done && (
+            <p className="auth-footer-text" style={{ marginTop: 28 }}>
+              <Link to="/login" style={{ color: '#6B7280', fontSize: '.85rem' }}>← Back to Sign In</Link>
+            </p>
+          )}
         </div>
       </div>
     </div>

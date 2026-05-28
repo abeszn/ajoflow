@@ -1,20 +1,16 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { MailCheck } from 'lucide-react';
-import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import API from '../services/api';
 import ThemeToggle from '../components/ThemeToggle';
 import PasswordInput from '../components/PasswordInput';
 
 export default function Register() {
-  const navigate    = useNavigate();
-  const { setUser } = useAuth();
-
-  const [form, setForm]           = useState({ firstName: '', lastName: '', email: '', phone: '', password: '', role: 'member' });
-  const [error, setError]         = useState('');
-  const [loading, setLoading]     = useState(false);
-  const [emailSent, setEmailSent] = useState(false); // when Supabase requires email confirm
+  const navigate = useNavigate();
+  const { login } = useAuth();
+  const [form, setForm] = useState({ firstName: '', lastName: '', email: '', phone: '', password: '', role: 'member' });
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => { document.title = 'Create Account | AjoFlow'; }, []);
 
@@ -25,74 +21,22 @@ export default function Register() {
     setError('');
     if (form.password.length < 6) { setError('Password must be at least 6 characters.'); return; }
     setLoading(true);
-
-    const fullName = `${form.firstName.trim()} ${form.lastName.trim()}`;
-
     try {
-      // 1. Create Supabase auth account
-      const { data, error: signUpError } = await supabase.auth.signUp({
-        email:    form.email.trim(),
+      const { data } = await API.post('/auth/register', {
+        name: `${form.firstName.trim()} ${form.lastName.trim()}`,
+        email: form.email,
+        phone: form.phone,
         password: form.password,
-        options:  { data: { name: fullName } },
+        role: form.role,
       });
-      if (signUpError) throw signUpError;
-
-      // 2a. If email confirmation is required (no session yet)
-      if (!data.session) {
-        setEmailSent(true);
-        return;
-      }
-
-      // 2b. Session available — create the MongoDB profile
-      const { data: profile } = await API.post('/auth/profile', {
-        name:  fullName,
-        phone: form.phone.trim(),
-        role:  form.role,
-      }, {
-        headers: { Authorization: `Bearer ${data.session.access_token}` },
-      });
-
-      setUser(profile);        // update AuthContext directly
+      login(data);
       navigate('/dashboard');
     } catch (err) {
-      setError(err.message || 'Registration failed. Please try again.');
+      setError(err.response?.data?.message || 'Registration failed. Please try again.');
     } finally {
       setLoading(false);
     }
   };
-
-  /* ── Email confirmation required screen ── */
-  if (emailSent) {
-    return (
-      <div className="auth-layout">
-        <div className="auth-left">
-          <div className="auth-left-bar" />
-          <div className="auth-left-inner">
-            <div className="auth-logo">
-              <div className="logo-box">A</div>
-              <span className="logo-name">AjoFlow</span>
-            </div>
-          </div>
-        </div>
-        <div className="auth-right">
-          <ThemeToggle className="auth-theme-btn" />
-          <div className="auth-form-wrap" style={{ textAlign: 'center' }}>
-            <div style={{ marginBottom: 16, color: 'var(--accent-green)', display: 'flex', justifyContent: 'center' }}>
-              <MailCheck size={52} strokeWidth={1.4} />
-            </div>
-            <h2 className="auth-form-title">Confirm your email</h2>
-            <p style={{ color: 'var(--text-2)', fontSize: '.9rem', lineHeight: 1.75, marginBottom: 28 }}>
-              We sent a confirmation link to <strong>{form.email}</strong>.
-              Click it to activate your account, then sign in.
-            </p>
-            <Link to="/login">
-              <button className="btn btn-primary btn-full btn-lg">Go to Sign In</button>
-            </Link>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="auth-layout">
